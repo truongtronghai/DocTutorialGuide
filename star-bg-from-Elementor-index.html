@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starfield Background Reproduction</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050510;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            padding: 40px 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        /* Target section container for the stars */
+        .stars-bg {
+            position: relative;
+            width: 100%;
+            height: 350px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #0f172a, #1e1b4b);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Canvas positioning inside the section */
+        .stars-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Content layer stays above the canvas */
+        .content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            max-width: 80%;
+        }
+
+        h1, h2 {
+            margin: 0 0 10px 0;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        p {
+            margin: 0;
+            opacity: 0.8;
+            font-size: 1.1rem;
+            line-height: 1.5;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #4338ca;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header style="text-align: center; margin-bottom: 20px;">
+            <h1>Canvas Starfield Demo</h1>
+            <p>A reproduction of the dynamic, resize-aware background script.</p>
+        </header>
+
+        <div class="controls">
+            <button class="btn" id="resize-btn">Toggle Section Size (Test ResizeObserver)</button>
+        </div>
+
+        <!-- Section 1 -->
+        <div class="stars-bg" id="section-1">
+            <div class="content">
+                <h2>Hero Section</h2>
+                <p>The stars flow continuously from the bottom-left to the top-right direction.</p>
+            </div>
+        </div>
+
+        <!-- Section 2 -->
+        <div class="stars-bg" style="background: linear-gradient(135deg, #111827, #311042); height: 250px;">
+            <div class="content">
+                <h2>Feature Section</h2>
+                <p>Each section completely generates its own isolated canvas environment.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const sections = document.querySelectorAll(".stars-bg");
+            if (!sections.length) return;
+
+            sections.forEach((section) => {
+                // Create a unique canvas for each section
+                const canvas = document.createElement("canvas");
+                canvas.className = "stars-canvas";
+                section.prepend(canvas);
+
+                const ctx = canvas.getContext("2d");
+
+                function resize() {
+                    canvas.width = section.clientWidth;
+                    canvas.height = section.clientHeight;
+                }
+                resize();
+
+                // Use ResizeObserver so it also works when Elementor changes layout dynamically
+                const ro = new ResizeObserver(resize);
+                ro.observe(section);
+
+                const STAR_COUNT = 70; // slightly reduced
+                const stars = [];
+
+                // Direction: bottom-left -> top-right (↗)
+                const angle = -45 * (Math.PI / 180);
+                const vx = Math.cos(angle);
+                const vy = Math.sin(angle);
+
+                function spawnStar(fromEdge = true) {
+                    const star = {
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        radius: Math.random() * 1.3 + 0.5,
+                        speed: Math.random() * 0.6 + 0.2
+                    };
+
+                    if (fromEdge) {
+                        // Spawn from LEFT or BOTTOM edges
+                        if (Math.random() < 0.5) {
+                            star.x = 0;
+                            star.y = Math.random() * canvas.height;
+                        } else {
+                            star.x = Math.random() * canvas.width;
+                            star.y = canvas.height;
+                        }
+                    }
+                    return star;
+                }
+
+                // Start spread across the canvas
+                for (let i = 0; i < STAR_COUNT; i++) {
+                    stars.push(spawnStar(false));
+                }
+
+                function animate() {
+                    // If section is hidden (e.g., tabs), avoid weird sizes
+                    if (canvas.width === 0 || canvas.height === 0) {
+                        requestAnimationFrame(animate);
+                        return;
+                    }
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    for (const star of stars) {
+                        star.x += vx * star.speed;
+                        star.y += vy * star.speed;
+
+                        // Respawn once it exits TOP or RIGHT
+                        if (star.x > canvas.width + 5 || star.y < -5) {
+                            const ns = spawnStar(true);
+                            star.x = ns.x;
+                            star.y = ns.y;
+                            star.radius = ns.radius;
+                            star.speed = ns.speed;
+                        }
+
+                        ctx.beginPath();
+                        ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = "white";
+                        ctx.fill();
+                    }
+
+                    requestAnimationFrame(animate);
+                }
+
+                animate();
+            });
+
+            // Interactive helper to test the ResizeObserver functionality
+            const resizeBtn = document.getElementById('resize-btn');
+            const targetSection = document.getElementById('section-1');
+            if(resizeBtn && targetSection) {
+                resizeBtn.addEventListener('click', () => {
+                    if(targetSection.style.height === '500px') {
+                        targetSection.style.height = '350px';
+                    } else {
+                        targetSection.style.height = '500px';
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
